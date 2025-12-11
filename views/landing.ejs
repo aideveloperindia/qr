@@ -462,58 +462,30 @@
             }
         })();
 
-        // Request geolocation
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    const { latitude, longitude } = position.coords;
-                    console.log('Location obtained:', latitude, longitude);
-                    resolveMerchant(latitude, longitude);
-                },
-                (error) => {
-                    console.error('Geolocation error:', error);
-                    document.getElementById('loading').style.display = 'none';
-                    document.getElementById('locationDenied').style.display = 'block';
-                },
-                { timeout: 10000, enableHighAccuracy: false }
-            );
-        } else {
-            console.log('Geolocation not supported');
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('locationDenied').style.display = 'block';
-        }
-
-        async function resolveMerchant(lat = null, lng = null) {
+        // NO GEOLOCATION - Use first merchant immediately
+        function resolveMerchant() {
             try {
-                document.getElementById('loading').style.display = 'block';
-                document.getElementById('locationDenied').style.display = 'none';
+                document.getElementById('loading').style.display = 'none';
                 document.getElementById('errorMessage').classList.remove('active');
 
-                // Use first merchant directly - no API call needed
+                // Use first merchant directly from server-side data - NO API CALL NEEDED
                 const merchants = <%- JSON.stringify(merchants || []) %>;
                 if (merchants.length === 0) {
                     throw new Error('No merchants available');
                 }
                 
                 const merchant = merchants[0];
-                const response = { merchant: merchant };
-
-                const data = await response.json();
-
-                if (data.success && data.merchant) {
-                    merchantData = data.merchant;
-                    displayMerchant(data.merchant);
-                } else {
-                    throw new Error(data.error || 'Failed to resolve merchant');
-                }
+                merchantData = merchant;
+                displayMerchant(merchant);
             } catch (error) {
                 console.error('Error resolving merchant:', error);
                 document.getElementById('errorMessage').textContent = 'Error: ' + error.message;
                 document.getElementById('errorMessage').classList.add('active');
-            } finally {
-                document.getElementById('loading').style.display = 'none';
             }
         }
+        
+        // Call immediately on page load - NO GEOLOCATION NEEDED
+        resolveMerchant();
 
         function displayMerchant(merchant) {
             document.getElementById('merchantName').textContent = merchant.name;
