@@ -7,8 +7,8 @@ const QRCode = require('qrcode');
 const path = require('path');
 const fs = require('fs');
 
-// Get the base URL from environment or use localhost
-const BASE_URL = process.env.BASE_URL || 'http://localhost:4000';
+// Get the base URL from environment or use deployment URL
+const BASE_URL = process.env.BASE_URL || 'https://oneqrcode.vercel.app';
 const CODE = process.env.CODE || 'SHARED1';
 const DEMO_MODE = process.env.DEMO_MODE === 'true' || process.env.DEMO === 'true';
 const OUTPUT_DIR = path.join(__dirname, '..', 'public', 'qr');

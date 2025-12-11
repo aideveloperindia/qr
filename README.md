@@ -26,24 +26,23 @@ npm install
 npm start
 ```
 
-The server will run on `http://localhost:4000` (or the port specified in `PORT` environment variable).
+The server will run on the specified port (default: 4000 for local development).
+
+**Deployment URL:** https://oneqrcode.vercel.app
 
 ### Generate QR Code
 
 ```bash
-# Generate QR for localhost
+# Generate QR with deployment URL (default)
 npm run generate-qr
 
-# Generate QR for ngrok URL
-BASE_URL=https://your-ngrok-url.ngrok.io npm run generate-qr
-
-# Generate QR with Payment Simulator (Demo Mode)
-DEMO_MODE=true BASE_URL=https://your-ngrok-url.ngrok.io npm run generate-qr
+# Or specify custom URL
+BASE_URL=https://your-custom-url.com npm run generate-qr
 ```
 
-The QR code PNG will be saved to `public/qr/SHARED1.png` (or `SHARED1_demo.png` for demo mode).
+The QR code PNG will be saved to `public/qr/SHARED1.png` and points to the deployment URL by default.
 
-**Payment Simulator:** When demo mode is enabled, scanning with payment apps shows a custom payment simulator instead of opening real apps. This allows showing fake "payment successful" confirmations. See `PAYMENT_SIMULATOR_GUIDE.md` for details.
+**Note:** The QR code is configured to use the deployment URL (https://oneqrcode.vercel.app) so it works from any device.
 
 ## 📱 Testing with ngrok
 

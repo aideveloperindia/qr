@@ -225,8 +225,12 @@ app.get('/health', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 QR Multiplex Demo server running on http://localhost:${PORT}`);
-  console.log(`📱 Main endpoint: http://localhost:${PORT}/p/SHARED1`);
-  console.log(`⚙️  Admin UI: http://localhost:${PORT}/admin`);
+  const deploymentUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://oneqrcode.vercel.app';
+  console.log(`🚀 QR Multiplex Demo server running on port ${PORT}`);
+  console.log(`📱 Main endpoint: ${deploymentUrl}/p/SHARED1`);
+  console.log(`⚙️  Admin UI: ${deploymentUrl}/admin`);
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`🔧 Local access: http://localhost:${PORT}`);
+  }
 });
 
