@@ -194,13 +194,36 @@ app.get('/p/:code', async (req, res) => {
     // FINAL DETECTION LOG
     console.log(`[DETECTION RESULT] Code: ${code}, App: ${appType}`);
 
-    // CRITICAL: Check if mobile browser FIRST - before anything else
-    // Mobile browsers should NEVER see landing page (they should get redirect page)
+    // CRITICAL: Handle specific app types FIRST (before mobile browser check)
+    // These apps should be handled BEFORE checking if it's a mobile browser
+    
+    // 1. Google Lens → Google Review (must check BEFORE mobile browser)
+    if (appType === AppType.GOOGLE_LENS && codeMerchants.length > 0) {
+      const merchant = await resolveMerchant(codeMerchants, coords, ip);
+      if (merchant.google_place_id) {
+        const reviewUrl = `https://search.google.com/local/writereview?placeid=${merchant.google_place_id}`;
+        console.log(`[REDIRECT] Google Lens -> Google Review: ${reviewUrl}`);
+        return res.redirect(302, reviewUrl);
+      }
+    }
+    
+    // 2. Camera → Landing page (shows menu, WiFi, etc.)
+    if (appType === AppType.CAMERA && codeMerchants.length > 0) {
+      const merchant = await resolveMerchant(codeMerchants, coords, ip);
+      console.log(`[REDIRECT] Camera -> Landing page (menu, WiFi)`);
+      return res.render('landing', {
+        code,
+        merchant: merchant,
+        merchants: codeMerchants
+      });
+    }
+    
+    // 3. Check if mobile browser (for payment apps)
     const isMobileBrowser = /Mobile|Android|iPhone|iPad|webview|wv/i.test(userAgent);
     
     console.log(`[MOBILE CHECK] isMobileBrowser: ${isMobileBrowser}, userAgent: ${userAgent.substring(0, 150)}`);
     
-    // IF MOBILE BROWSER - ALWAYS RETURN REDIRECT PAGE (NO EXCEPTIONS)
+    // IF MOBILE BROWSER - Check if it's a payment app, otherwise show landing page
     if (isMobileBrowser && codeMerchants.length > 0) {
       const merchant = codeMerchants[0];
       let upiIntent = null;
