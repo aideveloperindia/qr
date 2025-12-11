@@ -149,30 +149,49 @@ app.get('/p/:code', async (req, res) => {
     // Logging
     console.log(`[DETECTION] Code: ${code}, App: ${appType}, UA: ${userAgent.substring(0, 50)}`);
 
-    // IF PAYMENT APP DETECTED - REDIRECT IMMEDIATELY (no merchant resolution needed, use first merchant)
+    // IF PAYMENT APP DETECTED - RETURN UPI INTENT DIRECTLY (no redirect, no HTML)
     if (appType === AppType.GOOGLE_PAY || appType === AppType.PHONEPE || appType === AppType.PAYTM) {
-      // Use first merchant for immediate redirect (fastest)
+      // Use first merchant for immediate response (fastest)
       const merchant = codeMerchants[0];
       
-      let redirectUrl = null;
+      let upiIntent = null;
       if (appType === AppType.GOOGLE_PAY && merchant.upi?.gpay_intent) {
-        redirectUrl = merchant.upi.gpay_intent;
+        upiIntent = merchant.upi.gpay_intent;
       } else if (appType === AppType.PHONEPE && merchant.upi?.phonepe_intent) {
-        redirectUrl = merchant.upi.phonepe_intent;
+        upiIntent = merchant.upi.phonepe_intent;
       } else if (appType === AppType.PAYTM && merchant.upi?.paytm_intent) {
-        redirectUrl = merchant.upi.paytm_intent;
+        upiIntent = merchant.upi.paytm_intent;
       }
       
-      if (redirectUrl) {
-        console.log(`[IMMEDIATE REDIRECT] ${appType} -> ${redirectUrl}`);
-        // Immediate redirect - no HTML, no delay
-        res.writeHead(307, {
-          'Location': redirectUrl,
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        });
-        return res.end();
+      if (upiIntent) {
+        console.log(`[UPI INTENT] ${appType} -> ${upiIntent}`);
+        // Return minimal HTML that immediately opens UPI intent
+        // Use both JavaScript and meta refresh for maximum compatibility
+        // This should open the payment app directly without showing redirect warning
+        const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
+(function() {
+  // Immediate redirect - no delay
+  window.location.replace("${upiIntent}");
+  // Fallback
+  setTimeout(function() {
+    window.location.href = "${upiIntent}";
+  }, 10);
+})();
+</script>
+<meta http-equiv="refresh" content="0;url=${upiIntent}">
+</head>
+<body></body>
+</html>`;
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+        return res.send(html);
       }
     }
     
