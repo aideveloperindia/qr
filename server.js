@@ -196,9 +196,12 @@ app.get('/p/:code', async (req, res) => {
 
     // ALWAYS SHOW REDIRECT PAGE FOR MOBILE BROWSERS (payment apps open in browser)
     // If it's a mobile browser, assume it might be from a payment app
-    const isMobileBrowser = /Mobile|Android|iPhone|iPad/.test(userAgent);
+    const isMobileBrowser = /Mobile|Android|iPhone|iPad|webview|wv/.test(userAgent.toLowerCase());
+    
+    console.log(`[MOBILE CHECK] isMobileBrowser: ${isMobileBrowser}, userAgent: ${userAgent.substring(0, 100)}`);
     
     // IF PAYMENT APP DETECTED OR MOBILE BROWSER - RETURN UPI INTENT DIRECTLY
+    // CRITICAL: Mobile browsers should ALWAYS get redirect page, not landing page
     if (appType === AppType.GOOGLE_PAY || appType === AppType.PHONEPE || appType === AppType.PAYTM || 
         (isMobileBrowser && codeMerchants.length > 0)) {
       // Use first merchant for immediate response (fastest)
@@ -221,6 +224,19 @@ app.get('/p/:code', async (req, res) => {
         } else if (merchant.upi?.paytm_intent) {
           upiIntent = merchant.upi.paytm_intent;
         }
+      }
+      
+      // CRITICAL: If mobile browser, ALWAYS show redirect page (even if upiIntent is null, use first available)
+      if (isMobileBrowser && !upiIntent && merchant.upi) {
+        // Force PhonePe intent for mobile browsers (most common in India)
+        if (merchant.upi.phonepe_intent) {
+          upiIntent = merchant.upi.phonepe_intent;
+        } else if (merchant.upi.gpay_intent) {
+          upiIntent = merchant.upi.gpay_intent;
+        } else if (merchant.upi.paytm_intent) {
+          upiIntent = merchant.upi.paytm_intent;
+        }
+        console.log(`[MOBILE FALLBACK] Using ${upiIntent ? 'PhonePe' : 'first available'} intent for mobile browser`);
       }
       
       if (upiIntent) {
@@ -356,7 +372,83 @@ p { color:#666; margin-bottom:20px; font-size:14px; }
       }
     }
     
-    // IF NOT DETECTED AS PAYMENT APP - Show landing page with auto-redirect
+    // IF NOT DETECTED AS PAYMENT APP - Check if mobile browser first
+    // CRITICAL: Mobile browsers should NEVER see landing page (they should get redirect page)
+    const isMobileBrowser = /Mobile|Android|iPhone|iPad|webview|wv/.test(userAgent.toLowerCase());
+    
+    if (isMobileBrowser && codeMerchants.length > 0) {
+      // Mobile browser but didn't get redirect page - force it now
+      const merchant = codeMerchants[0];
+      let upiIntent = null;
+      if (merchant.upi?.phonepe_intent) {
+        upiIntent = merchant.upi.phonepe_intent;
+      } else if (merchant.upi?.gpay_intent) {
+        upiIntent = merchant.upi.gpay_intent;
+      } else if (merchant.upi?.paytm_intent) {
+        upiIntent = merchant.upi.paytm_intent;
+      }
+      
+      if (upiIntent) {
+        console.log(`[MOBILE FALLBACK] Mobile browser detected, forcing redirect to: ${upiIntent}`);
+        // Return redirect page
+        const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Opening Payment...</title>
+<meta http-equiv="refresh" content="0;url=${upiIntent}">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#000; }
+body { font-family:Arial, sans-serif; display:flex; align-items:center; justify-content:center; position:fixed; top:0; left:0; right:0; bottom:0; }
+.container { background:white; padding:25px 20px; border-radius:12px; max-width:320px; width:90%; text-align:center; }
+h1 { color:#333; margin-bottom:12px; font-size:20px; }
+p { color:#666; margin-bottom:20px; font-size:14px; }
+.btn { display:block; width:100%; padding:18px; background:#007bff; color:white; text-decoration:none; border-radius:8px; font-size:18px; font-weight:bold; box-shadow:0 4px 12px rgba(0,123,255,0.4); }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Opening Payment...</h1>
+  <p>Please wait...</p>
+  <a href="${upiIntent}" id="openBtn" class="btn" style="display:none;">Open Payment</a>
+</div>
+<script>
+(function() {
+  const upiIntent = "${upiIntent}";
+  function redirect() {
+    try {
+      window.location.replace(upiIntent);
+      window.location.href = upiIntent;
+      window.location = upiIntent;
+    } catch(e) {}
+  }
+  redirect();
+  setTimeout(redirect, 0);
+  setTimeout(redirect, 50);
+  setTimeout(redirect, 100);
+  setTimeout(redirect, 200);
+  const btn = document.getElementById('openBtn');
+  if (btn) {
+    setTimeout(function() { btn.style.display = 'block'; btn.click(); }, 300);
+  }
+  document.addEventListener('visibilitychange', function() {
+    if (!document.hidden) { redirect(); if (btn) btn.click(); }
+  });
+  window.addEventListener('focus', redirect);
+  window.addEventListener('load', redirect);
+})();
+</script>
+</body>
+</html>`;
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        return res.send(html);
+      }
+    }
+    
+    // IF NOT MOBILE BROWSER - Show landing page with auto-redirect
     // This handles cases where payment apps open URL in browser but don't send headers
     
     // Resolve merchant (only for non-payment apps or if payment app redirect failed)
