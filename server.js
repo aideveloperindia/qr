@@ -169,33 +169,15 @@ app.get('/p/:code', async (req, res) => {
       
       if (upiIntent) {
         console.log(`[UPI INTENT] ${appType} -> ${upiIntent}`);
-        // Return minimal HTML that immediately opens UPI intent
-        // Use both JavaScript and meta refresh for maximum compatibility
-        // This should open the payment app directly without showing redirect warning
-        const html = `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<script>
-(function() {
-  // Immediate redirect - no delay
-  window.location.replace("${upiIntent}");
-  // Fallback
-  setTimeout(function() {
-    window.location.href = "${upiIntent}";
-  }, 10);
-})();
-</script>
-<meta http-equiv="refresh" content="0;url=${upiIntent}">
-</head>
-<body></body>
-</html>`;
-        res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.setHeader('Pragma', 'no-cache');
-        res.setHeader('Expires', '0');
-        return res.send(html);
+        // Try direct redirect first (307 for payment apps)
+        // If that doesn't work, payment apps might handle it better than browser redirect
+        res.writeHead(307, {
+          'Location': upiIntent,
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        });
+        return res.end();
       }
     }
     
