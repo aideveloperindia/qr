@@ -102,13 +102,19 @@ app.get('/p/:code', async (req, res) => {
   res.setHeader('Expires', '0');
   
   const { code } = req.params;
-  const userAgent = req.get('user-agent') || '';
-  const xRequestedWith = req.get('x-requested-with') || '';
-  const referer = req.get('referer') || '';
+  const userAgent = (req.get('user-agent') || '').toLowerCase();
+  const xRequestedWith = (req.get('x-requested-with') || '').toLowerCase();
+  const referer = (req.get('referer') || '').toLowerCase();
   const ip = req.ip || req.connection.remoteAddress;
   
-  // ALWAYS LOG - Even before detection
-  console.log(`[REQUEST] /p/${code} - UA: ${userAgent.substring(0, 80)}`);
+  // CRITICAL: ALWAYS LOG EVERYTHING
+  console.log('========================================');
+  console.log(`[QR SCAN] Code: ${code}`);
+  console.log(`[QR SCAN] User-Agent: ${req.get('user-agent') || 'NONE'}`);
+  console.log(`[QR SCAN] X-Requested-With: ${req.get('x-requested-with') || 'NONE'}`);
+  console.log(`[QR SCAN] Referer: ${req.get('referer') || 'NONE'}`);
+  console.log(`[QR SCAN] All Headers:`, JSON.stringify(req.headers, null, 2));
+  console.log('========================================');
   
   // Check for app type in query params (fallback for apps that don't send headers)
   const appParam = req.query.app; // ?app=gpay, ?app=phonepe, etc.
@@ -128,20 +134,50 @@ app.get('/p/:code', async (req, res) => {
       });
     }
 
-    // DETECT APP FIRST - BEFORE ANYTHING ELSE
-    let appType = detectApp(userAgent, xRequestedWith);
+    // DETECT APP - MULTIPLE METHODS
+    let appType = detectApp(req.get('user-agent') || '', req.get('x-requested-with') || '');
     
-    // Enhanced detection: Check referer for payment app indicators
-    const refererLower = referer.toLowerCase();
-    if (refererLower.includes('phonepe') || refererLower.includes('phone-pe')) {
-      appType = AppType.PHONEPE;
-    } else if (refererLower.includes('gpay') || refererLower.includes('google pay') || refererLower.includes('paisa')) {
+    // Method 1: Check X-Requested-With header (most reliable if present)
+    if (xRequestedWith.includes('com.google.android.apps.nbu.paisa.user')) {
       appType = AppType.GOOGLE_PAY;
-    } else if (refererLower.includes('paytm')) {
+      console.log(`[DETECTION] Method: X-Requested-With -> Google Pay`);
+    } else if (xRequestedWith.includes('com.phonepe.app')) {
+      appType = AppType.PHONEPE;
+      console.log(`[DETECTION] Method: X-Requested-With -> PhonePe`);
+    } else if (xRequestedWith.includes('net.one97.paytm')) {
       appType = AppType.PAYTM;
+      console.log(`[DETECTION] Method: X-Requested-With -> Paytm`);
     }
     
-    // Override with query param if provided
+    // Method 2: Check User-Agent patterns
+    if (appType === AppType.BROWSER) {
+      if (userAgent.includes('paisa') || userAgent.includes('gpay') || userAgent.includes('google pay') || userAgent.includes('tez')) {
+        appType = AppType.GOOGLE_PAY;
+        console.log(`[DETECTION] Method: User-Agent -> Google Pay`);
+      } else if (userAgent.includes('phonepe') || userAgent.includes('phone-pe')) {
+        appType = AppType.PHONEPE;
+        console.log(`[DETECTION] Method: User-Agent -> PhonePe`);
+      } else if (userAgent.includes('paytm')) {
+        appType = AppType.PAYTM;
+        console.log(`[DETECTION] Method: User-Agent -> Paytm`);
+      }
+    }
+    
+    // Method 3: Check Referer
+    if (appType === AppType.BROWSER && referer) {
+      if (referer.includes('phonepe') || referer.includes('phone-pe')) {
+        appType = AppType.PHONEPE;
+        console.log(`[DETECTION] Method: Referer -> PhonePe`);
+      } else if (referer.includes('gpay') || referer.includes('google pay') || referer.includes('paisa')) {
+        appType = AppType.GOOGLE_PAY;
+        console.log(`[DETECTION] Method: Referer -> Google Pay`);
+      } else if (referer.includes('paytm')) {
+        appType = AppType.PAYTM;
+        console.log(`[DETECTION] Method: Referer -> Paytm`);
+      }
+    }
+    
+    // Method 4: Query parameter override (for testing/fallback)
     if (appParam) {
       const appMap = {
         'gpay': AppType.GOOGLE_PAY,
@@ -151,17 +187,12 @@ app.get('/p/:code', async (req, res) => {
       };
       if (appMap[appParam.toLowerCase()]) {
         appType = appMap[appParam.toLowerCase()];
+        console.log(`[DETECTION] Method: Query Param -> ${appType}`);
       }
     }
     
-    // ALWAYS LOG DETECTION - Critical for debugging
-    console.log(`[DETECTION] Code: ${code}, App: ${appType}`);
-    console.log(`[HEADERS] User-Agent: ${userAgent.substring(0, 150)}`);
-    console.log(`[HEADERS] X-Requested-With: ${xRequestedWith || 'none'}`);
-    console.log(`[HEADERS] Referer: ${referer || 'none'}`);
-    console.log(`[QUERY] app param: ${appParam || 'none'}`);
-    console.log(`[DETECTION] Full UA: ${userAgent}`);
-    console.log(`[DETECTION] Full XRW: ${xRequestedWith}`);
+    // FINAL DETECTION LOG
+    console.log(`[DETECTION RESULT] Code: ${code}, App: ${appType}`);
 
     // IF PAYMENT APP DETECTED - RETURN UPI INTENT DIRECTLY (no redirect, no HTML)
     if (appType === AppType.GOOGLE_PAY || appType === AppType.PHONEPE || appType === AppType.PAYTM) {
