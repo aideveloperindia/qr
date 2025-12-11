@@ -262,9 +262,15 @@ app.get('/p/:code', async (req, res) => {
     // Payment apps: GPay, PhonePe, Paytm
     const isPaymentApp = appType === AppType.GOOGLE_PAY || appType === AppType.PHONEPE || appType === AppType.PAYTM;
     
-    // ONLY process payment apps OR mobile browsers that might be payment apps
-    // DO NOT process Google Lens, Camera, or WiFi Scanner here
-    if (isPaymentApp && codeMerchants.length > 0) {
+    // CRITICAL: If mobile browser, ALWAYS try to show redirect page (even if detection failed)
+    // Payment apps open URLs in mobile browsers, so mobile browsers should get redirect page
+    // ONLY skip if it's explicitly Camera or Google Lens (already handled above)
+    // Mobile browsers should NEVER see landing page (which requests location)
+    const shouldShowRedirect = isPaymentApp || (isMobileBrowser && appType !== AppType.CAMERA && appType !== AppType.GOOGLE_LENS);
+    
+    console.log(`[REDIRECT CHECK] shouldShowRedirect: ${shouldShowRedirect}, isPaymentApp: ${isPaymentApp}, isMobileBrowser: ${isMobileBrowser}, appType: ${appType}`);
+    
+    if (shouldShowRedirect && codeMerchants.length > 0) {
       const merchant = codeMerchants[0];
       let upiIntent = null;
       
